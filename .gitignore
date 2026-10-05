@@ -43,3 +43,8 @@ Thumbs.db
 *.tmp
 *.log
 test_*.py
+
+# Archivos de datos de prueba
+*.xlsx
+*.xls
+comentarios*.csv

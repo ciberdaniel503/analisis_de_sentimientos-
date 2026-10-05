@@ -291,6 +291,68 @@ negative_words_es = {
     'pesadilla', 'insoportable', 'intolerable', 'inaceptable'
 }
 
+# ============================================================
+# DICCIONARIO DE POLARIDADES (ESPECIFICADO POR EL DOCENTE)
+# ============================================================
+
+# Diccionario principal de polaridades con valores entre -1.0 y +1.0
+# Organizado para facilitar la adición de nuevas palabras
+polaridad_palabras = {
+    # PALABRAS POSITIVAS ALTO (+0.9)
+    'excelente': 0.9,
+    'deliciosa': 0.9,
+    'riquísima': 0.9,
+
+    # PALABRAS POSITIVAS MEDIO (+0.7)
+    'caliente': 0.7,
+    'buena': 0.7,
+    'bueno': 0.7,
+
+    # PALABRAS POSITIVAS MODERADO (+0.6)
+    'rápido': 0.6,
+    'limpio': 0.6,
+    'limpia': 0.6,
+
+    # PALABRAS NEGATIVAS MODERADO (-0.5)
+    'frío': -0.5,
+    'fría': -0.5,
+    'aceptable': -0.5,
+
+    # PALABRAS NEGATIVAS MEDIO (-0.6)
+    'lento': -0.6,
+    'lenta': -0.6,
+    'feo': -0.6,
+    'fea': -0.6,
+
+    # PALABRAS NEGATIVAS ALTO (-0.7)
+    'mala gana': -0.7,
+    'sucio': -0.7,
+    'sucia': -0.7,
+
+    # PALABRAS NEGATIVAS SEVERO (-0.9)
+    'grosero': -0.9,
+    'grosera': -0.9,
+    'pésimo': -0.9,
+    'pésima': -0.9
+}
+
+# Sustantivos neutros (valor 0.0) - no aportan carga emocional por sí mismos
+sustantivos_neutros = {
+    'comida', 'servicio', 'mesero', 'postre', 'ambiente',
+    'hamburguesa', 'pizza', 'restaurante', 'local', 'lugar',
+    'plato', 'bebida', 'atención', 'precio', 'calidad'
+}
+
+# Rangos para clasificación de resultados (basados en escala estándar de -1.0 a +1.0)
+# Estos rangos permiten una clasificación detallada del sentimiento
+rangos_clasificacion = {
+    'muy_positivo': 0.7,      # >= 0.7
+    'positivo': 0.3,          # 0.3 a 0.69
+    'neutral': -0.3,           # -0.29 a 0.29
+    'negativo': -0.7,         # -0.3 a -0.69
+    'muy_negativo': -1.0      # <= -0.7
+}
+
 def detect_spanish_simple(text):
     """
     Detección simple de español basada en caracteres especiales y palabras comunes.
@@ -371,6 +433,120 @@ def analyze_spanish_sentiment(text):
     subjectivity = min(1.0, emotional_words / max(1, total_words) * 1.5)
     
     return polarity, subjectivity
+
+# ============================================================
+# FUNCIÓN DE ANÁLISIS CON PONDERACIÓN (NUEVA FUNCIONALIDAD)
+# ============================================================
+
+def analyze_weighted_sentiment(text):
+    """
+    Análisis de sentimiento usando ponderación de palabras según diccionario del docente.
+    
+    Esta función:
+    1. Detecta palabras del diccionario de polaridades en el texto
+    2. Calcula la ponderación promedio de las palabras detectadas
+    3. Clasifica el resultado según los rangos establecidos
+    4. Devuelve información detallada del análisis
+    
+    Args:
+        text: Texto a analizar
+        
+    Returns:
+        dict: {
+            'ponderacion': float (valor entre -1.0 y +1.0),
+            'clasificacion': str (Muy positivo, Positivo, Neutral, Negativo, Muy negativo),
+            'palabras_detectadas': list (palabras encontradas con sus valores),
+            'total_palabras': int (cantidad de palabras del diccionario encontradas)
+        }
+    """
+    if not text or not str(text).strip():
+        return {
+            'ponderacion': 0.0,
+            'clasificacion': 'Neutral',
+            'palabras_detectadas': [],
+            'total_palabras': 0
+        }
+    
+    text_lower = text.lower()
+    palabras_detectadas = []
+    
+    # Buscar palabras individuales del diccionario
+    for palabra, valor in polaridad_palabras.items():
+        if palabra in text_lower:
+            palabras_detectadas.append({
+                'palabra': palabra,
+                'valor': valor
+            })
+    
+    # Si no se encontraron palabras del diccionario, usar análisis tradicional
+    if not palabras_detectadas:
+        # Usar el análisis existente como respaldo
+        polarity, _ = analyze_spanish_sentiment(text)
+        clasificacion = clasificar_ponderacion(polarity)
+        
+        return {
+            'ponderacion': polarity,
+            'clasificacion': clasificacion,
+            'palabras_detectadas': [],
+            'total_palabras': 0,
+            'metodo': 'tradicional'
+        }
+    
+    # Calcular ponderación promedio de las palabras detectadas
+    total_valor = sum(p['valor'] for p in palabras_detectadas)
+    ponderacion = total_valor / len(palabras_detectadas)
+    
+    # Asegurar que el resultado esté en el rango -1.0 a +1.0
+    ponderacion = max(-1.0, min(1.0, ponderacion))
+    
+    # Clasificar según los rangos establecidos
+    clasificacion = clasificar_ponderacion(ponderacion)
+    
+    return {
+        'ponderacion': ponderacion,
+        'clasificacion': clasificacion,
+        'palabras_detectadas': palabras_detectadas,
+        'total_palabras': len(palabras_detectadas),
+        'metodo': 'ponderacion'
+    }
+
+def clasificar_ponderacion(ponderacion):
+    """
+    Clasifica una ponderación según los rangos establecidos.
+    
+    Rangos utilizados:
+    - Muy positivo: >= 0.7
+    - Positivo: 0.3 a 0.69
+    - Neutral: -0.29 a 0.29
+    - Negativo: -0.3 a -0.69
+    - Muy negativo: <= -0.7
+    
+    Estos rangos se basan en una distribución equilibrada de la escala -1.0 a +1.0,
+    permitiendo una clasificación detallada y diferenciada de los sentimientos.
+    """
+    if ponderacion >= rangos_clasificacion['muy_positivo']:
+        return 'Muy positivo'
+    elif ponderacion >= rangos_clasificacion['positivo']:
+        return 'Positivo'
+    elif ponderacion >= rangos_clasificacion['neutral']:
+        return 'Neutral'
+    elif ponderacion >= rangos_clasificacion['negativo']:
+        return 'Negativo'
+    else:
+        return 'Muy negativo'
+
+def obtener_emoji_clasificacion(clasificacion):
+    """
+    Devuelve el emoji correspondiente a cada clasificación.
+    """
+    emojis = {
+        'Muy positivo': '🤩',
+        'Positivo': '😊',
+        'Neutral': '😐',
+        'Negativo': '😞',
+        'Muy negativo': '😠'
+    }
+    return emojis.get(clasificacion, '😐')
 
 
 
@@ -472,10 +648,13 @@ with st.container(border=True):
 if user_text.strip():
 
     result = predict_sentiment(user_text)
+    
+    # NUEVO: Análisis con ponderación
+    weighted_result = analyze_weighted_sentiment(user_text)
 
     st.write("")
 
-    # Resultado
+    # Resultado del análisis tradicional
     col1, col2 = st.columns([1, 4])
 
     with col1:
@@ -502,7 +681,7 @@ if user_text.strip():
 
     st.write("")
 
-    # Métricas
+    # Métricas del análisis tradicional
     m1, m2 = st.columns(2)
 
     with m1:
@@ -537,6 +716,63 @@ if user_text.strip():
         st.caption(
             "Objetivo ← Subjetividad → Subjetivo"
         )
+    
+    # NUEVO: Sección de análisis con ponderación
+    st.divider()
+    st.subheader("⚖️ Análisis con Ponderación")
+    
+    # Resultado de ponderación
+    col_p1, col_p2 = st.columns([1, 4])
+    
+    with col_p1:
+        emoji_ponderacion = obtener_emoji_clasificacion(weighted_result['clasificacion'])
+        st.markdown(
+            f"<div style='font-size:55px;text-align:center;'>{emoji_ponderacion}</div>",
+            unsafe_allow_html=True
+        )
+    
+    with col_p2:
+        if weighted_result['clasificacion'] == 'Muy positivo':
+            st.success("MUY POSITIVO")
+        elif weighted_result['clasificacion'] == 'Positivo':
+            st.success("POSITIVO")
+        elif weighted_result['clasificacion'] == 'Negativo':
+            st.error("NEGATIVO")
+        elif weighted_result['clasificacion'] == 'Muy negativo':
+            st.error("MUY NEGATIVO")
+        else:
+            st.info("NEUTRAL")
+    
+    st.write("")
+    
+    # Métricas de ponderación
+    mp1, mp2 = st.columns(2)
+    
+    with mp1:
+        st.metric(
+            "Ponderación",
+            f"{weighted_result['ponderacion']:.3f}"
+        )
+        
+        progress_pond = (weighted_result['ponderacion'] + 1) / 2
+        st.progress(progress_pond)
+        st.caption("Muy negativo ← Ponderación → Muy positivo")
+    
+    with mp2:
+        st.metric(
+            "Palabras detectadas",
+            weighted_result['total_palabras']
+        )
+        st.caption(f"Método: {weighted_result['metodo']}")
+    
+    # Mostrar palabras detectadas
+    if weighted_result['palabras_detectadas']:
+        st.write("**Palabras del diccionario detectadas:**")
+        for p in weighted_result['palabras_detectadas']:
+            valor_color = "🟢" if p['valor'] > 0 else "🔴"
+            st.caption(f"{valor_color} '{p['palabra']}' = {p['valor']:.1f}")
+    else:
+        st.info("No se detectaron palabras del diccionario de polaridades. Se usó análisis tradicional.")
 
 
 
@@ -582,12 +818,16 @@ if archivo is not None:
         ):
 
             resultados = []
+            resultados_ponderacion = []
 
             for comentario in df[columna]:
 
                 resultado = predict_sentiment(
                     comentario
                 )
+                
+                # NUEVO: Análisis con ponderación
+                resultado_pond = analyze_weighted_sentiment(comentario)
 
                 if resultado:
 
@@ -603,6 +843,9 @@ if archivo is not None:
                         "detected_lang": "unknown",
                         "translated_text": None
                     })
+                
+                # Agregar resultado de ponderación
+                resultados_ponderacion.append(resultado_pond)
 
 
             
@@ -631,6 +874,24 @@ if archivo is not None:
                 r["translated_text"] if r["translated_text"] else "No requerido"
                 for r in resultados
             ]
+            
+            # NUEVO: Agregar columnas de ponderación
+            df["Ponderación"] = [
+                r["ponderacion"] for r in resultados_ponderacion
+            ]
+            
+            df["Clasificación Ponderada"] = [
+                r["clasificacion"] for r in resultados_ponderacion
+            ]
+            
+            df["Palabras Detectadas"] = [
+                ", ".join([p["palabra"] for p in r["palabras_detectadas"]]) if r["palabras_detectadas"] else "Ninguna"
+                for r in resultados_ponderacion
+            ]
+            
+            df["Método Análisis"] = [
+                r["metodo"] for r in resultados_ponderacion
+            ]
 
 
            
@@ -646,9 +907,26 @@ if archivo is not None:
             neutrales = sum(
                 df["Sentimiento"] == "Neutral"
             )
+            
+            # NUEVO: Estadísticas de ponderación
+            ponderacion_promedio = df["Ponderación"].mean()
+            
+            # Contar clasificaciones ponderadas
+            muy_positivos = sum(df["Clasificación Ponderada"] == "Muy positivo")
+            positivos_pond = sum(df["Clasificación Ponderada"] == "Positivo")
+            neutrales_pond = sum(df["Clasificación Ponderada"] == "Neutral")
+            negativos_pond = sum(df["Clasificación Ponderada"] == "Negativo")
+            muy_negativos = sum(df["Clasificación Ponderada"] == "Muy negativo")
+            
+            total_comentarios = len(df)
+            
+            # Calcular porcentajes
+            porcentaje_positivos = ((muy_positivos + positivos_pond) / total_comentarios * 100) if total_comentarios > 0 else 0
+            porcentaje_neutrales = (neutrales_pond / total_comentarios * 100) if total_comentarios > 0 else 0
+            porcentaje_negativos = ((negativos_pond + muy_negativos) / total_comentarios * 100) if total_comentarios > 0 else 0
 
 
-            st.subheader("Resumen")
+            st.subheader("Resumen (Análisis Tradicional)")
 
             c1, c2, c3 = st.columns(3)
 
@@ -669,6 +947,79 @@ if archivo is not None:
                     "😐 Neutrales",
                     neutrales
                 )
+            
+            # NUEVO: Resumen de ponderación
+            st.subheader("📊 Resumen (Análisis con Ponderación)")
+            
+            # Primera fila: métricas principales
+            cp1, cp2, cp3 = st.columns(3)
+            
+            with cp1:
+                total_positivos_pond = muy_positivos + positivos_pond
+                st.metric(
+                    "🤩 Positivos",
+                    total_positivos_pond,
+                    f"{porcentaje_positivos:.1f}%"
+                )
+            
+            with cp2:
+                st.metric(
+                    "😐 Neutrales",
+                    neutrales_pond,
+                    f"{porcentaje_neutrales:.1f}%"
+                )
+            
+            with cp3:
+                total_negativos_pond = negativos_pond + muy_negativos
+                st.metric(
+                    "😠 Negativos",
+                    total_negativos_pond,
+                    f"{porcentaje_negativos:.1f}%"
+                )
+            
+            # Segunda fila: ponderación promedio e interpretación
+            cp4, cp5 = st.columns(2)
+            
+            with cp4:
+                st.metric(
+                    "⚖️ Ponderación Promedio",
+                    f"{ponderacion_promedio:.3f}"
+                )
+            
+            with cp5:
+                # Interpretación general basada en ponderación promedio
+                if ponderacion_promedio >= 0.5:
+                    interpretacion = "🎉 Excelente - Feedback muy positivo"
+                    color = "green"
+                elif ponderacion_promedio >= 0.2:
+                    interpretacion = "👍 Buena - Feedback mayormente positivo"
+                    color = "blue"
+                elif ponderacion_promedio >= -0.2:
+                    interpretacion = "😐 Neutral - Feedback equilibrado"
+                    color = "gray"
+                elif ponderacion_promedio >= -0.5:
+                    interpretacion = "👎 Regular - Feedback mayormente negativo"
+                    color = "orange"
+                else:
+                    interpretacion = "⚠️ Crítica - Feedback muy negativo"
+                    color = "red"
+                
+                st.info(f"**Interpretación:** {interpretacion}")
+            
+            # Tercera fila: desglose detallado
+            st.write("**Desglose detallado por clasificación:**")
+            cp6, cp7, cp8, cp9, cp10 = st.columns(5)
+            
+            with cp6:
+                st.metric("🤩 Muy positivo", muy_positivos)
+            with cp7:
+                st.metric("😊 Positivo", positivos_pond)
+            with cp8:
+                st.metric("😐 Neutral", neutrales_pond)
+            with cp9:
+                st.metric("😞 Negativo", negativos_pond)
+            with cp10:
+                st.metric("😠 Muy negativo", muy_negativos)
 
 
             
@@ -718,7 +1069,7 @@ if archivo is not None:
                 )
 
                 ax.set_title(
-                    "Comentarios por sentimiento",
+                    "Comentarios por sentimiento (Tradicional)",
                     color="#00d4ff",
                     fontsize=14,
                     fontweight='bold',
@@ -801,7 +1152,7 @@ if archivo is not None:
                     )
 
                     ax2.set_title(
-                        "Distribución porcentual",
+                        "Distribución porcentual (Tradicional)",
                         color="#00d4ff",
                         fontsize=14,
                         fontweight='bold',
@@ -816,6 +1167,130 @@ if archivo is not None:
 
                     plt.tight_layout()
                     st.pyplot(fig2)
+            
+            # NUEVO: Gráficos de análisis con ponderación
+            st.subheader("📈 Análisis visual con ponderación")
+            
+            col_graficos3, col_graficos4 = st.columns(2)
+            
+            with col_graficos3:
+                datos_pond = pd.DataFrame({
+                    "Clasificación": [
+                        "Muy positivo",
+                        "Positivo", 
+                        "Neutral",
+                        "Negativo",
+                        "Muy negativo"
+                    ],
+                    "Cantidad": [
+                        muy_positivos,
+                        positivos_pond,
+                        neutrales_pond,
+                        negativos_pond,
+                        muy_negativos
+                    ]
+                })
+                
+                fig3, ax3 = plt.subplots(figsize=(8, 5))
+                fig3.patch.set_facecolor("#0f172a")
+                ax3.set_facecolor("#0f172a")
+                
+                # Colores para las 5 categorías
+                colors_pond = ['#00ff88', '#00d4ff', '#7dd3fc', '#ff6b6b', '#ef4444']
+                bars_pond = ax3.bar(
+                    datos_pond["Clasificación"],
+                    datos_pond["Cantidad"],
+                    color=colors_pond,
+                    edgecolor='#334155',
+                    linewidth=2,
+                    alpha=0.9
+                )
+                
+                ax3.set_title(
+                    "Distribución por clasificación ponderada",
+                    color="#00d4ff",
+                    fontsize=14,
+                    fontweight='bold',
+                    pad=15
+                )
+                
+                ax3.set_xlabel(
+                    "Clasificación",
+                    color="#94a3b8",
+                    fontsize=11
+                )
+                
+                ax3.set_ylabel(
+                    "Cantidad",
+                    color="#94a3b8",
+                    fontsize=11
+                )
+                
+                ax3.tick_params(
+                    colors="#94a3b8",
+                    labelsize=9
+                )
+                
+                for spine in ax3.spines.values():
+                    spine.set_color("#334155")
+                    spine.set_linewidth(1.5)
+                
+                # Añadir valores sobre las barras
+                for bar in bars_pond:
+                    height = bar.get_height()
+                    if height > 0:
+                        ax3.text(bar.get_x() + bar.get_width()/2., height,
+                               f'{int(height)}',
+                               ha='center', va='bottom',
+                               color='#00d4ff',
+                               fontsize=10,
+                               fontweight='bold')
+                
+                plt.tight_layout()
+                st.pyplot(fig3)
+            
+            with col_graficos4:
+                if total_comentarios > 0:
+                    fig4, ax4 = plt.subplots(figsize=(8, 5))
+                    fig4.patch.set_facecolor("#0f172a")
+                    ax4.set_facecolor("#0f172a")
+                    
+                    colors_pond = ['#00ff88', '#00d4ff', '#7dd3fc', '#ff6b6b', '#ef4444']
+                    explode_pond = (0.05, 0.05, 0.05, 0.05, 0.05)
+                    
+                    wedges_pond, texts_pond, autotexts_pond = ax4.pie(
+                        [muy_positivos, positivos_pond, neutrales_pond, negativos_pond, muy_negativos],
+                        labels=["Muy positivo", "Positivo", "Neutral", "Negativo", "Muy negativo"],
+                        autopct="%1.1f%%",
+                        startangle=90,
+                        colors=colors_pond,
+                        explode=explode_pond,
+                        textprops={
+                            "color": "#e8e8e8",
+                            "fontsize": 9,
+                            "fontweight": "bold"
+                        },
+                        wedgeprops={
+                            "edgecolor": "#334155",
+                            "linewidth": 2
+                        }
+                    )
+                    
+                    ax4.set_title(
+                        "Distribución porcentual ponderada",
+                        color="#00d4ff",
+                        fontsize=14,
+                        fontweight='bold',
+                        pad=15
+                    )
+                    
+                    for autotext in autotexts_pond:
+                        autotext.set_color("#00d4ff")
+                        autotext.set_fontsize(10)
+                        autotext.set_fontweight('bold')
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig4)
 
 
     
