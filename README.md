@@ -16,11 +16,13 @@ Desarrollar una herramienta interactiva que facilite el análisis de opiniones y
 
 ## 🛠️ Tecnologías utilizadas
 
-- **Python:** desarrollo de la lógica de la aplicación.
+- **Python:** lenguaje principal de programación.
 - **Streamlit:** creación de la interfaz web interactiva.
-- **TextBlob:** procesamiento de texto y análisis de sentimientos.
-- **CSV:** lectura y análisis de datos tabulares.
-- **Git y GitHub:** control de versiones y alojamiento del código.
+- **Pandas:** procesamiento y organización de los datos.
+- **Matplotlib:** generación de gráficas para visualizar los resultados.
+- **TextBlob:** análisis de sentimientos y polaridad del texto.
+- **CSV:** manejo de archivos con comentarios y datos tabulares.
+- **Git y GitHub:** control de versiones y publicación del proyecto.
 
 ## 🚀 Instalación y ejecución
 
